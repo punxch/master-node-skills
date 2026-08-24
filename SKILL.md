@@ -28,6 +28,7 @@ Do not request a Master API token until the Master is reachable. Create node API
 - The required exception is VLESS Reality: it needs a dedicated TCP listener. Publish the selected Reality port directly, or forward it through a TCP stream proxy; document that exception to the user.
 - Default per-host protocol set: VMess + TLS + WebSocket, Hysteria2, and VLESS + Reality + Vision. Use a consistent country/location prefix, but do not call a Node `master` in its display name.
 - Keep one Master client named `main`: the Node VMess and VLESS client UUIDs must equal `main.uuid`; the Node Hysteria client `auth` must equal `main.auth`. Preserve its subscription ID.
+- For additional clients, set the client-level `flow` to `xtls-rprx-vision` (or an equivalent per-inbound override) so every VLESS Reality link carries Vision; do not add that flow to VMess or HY2 links. Treat a 3x-ui client update as a full-state update: preserve the existing UUID/auth, subscription ID, quota, enabled state, and intended inbound bindings, then verify node sync and the generated subscription.
 
 ## Execution workflow
 
@@ -65,6 +66,18 @@ panel-managed site fragments for the old loopback target. A stale VMess
 WebSocket target can make only VMess time out while HY2 appears fixed. Validate
 with `nginx -T`, `nginx -t`, a successful reload, and an independent Mihomo
 VMess probe; do not rely on a saved panel setting alone.
+
+Additional-client invariant: a partial `POST /panel/api/clients/update/{email}`
+may be accepted while zeroing omitted fields or rebuilding the current
+client/inbound relation. Before changing Reality flow, fetch the complete
+client record and its intended `inboundIds`; submit a complete normalized
+payload, keep `enable: true` and the existing quota/subscription identity, then
+verify that the Master still lists every intended inbound. A disabled client is
+filtered from node reconciliation, so a remote Node can fall back to `main`
+only even though the Master update returned success. If that happens, restore
+the intended bindings through the official client attach/inbound update API,
+push/reconcile the Node, and inspect the generated Clash YAML. Every VLESS
+Reality proxy for that client must contain `flow: xtls-rprx-vision`.
 
 ## Completion handoff
 

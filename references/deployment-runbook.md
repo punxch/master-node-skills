@@ -119,6 +119,41 @@ After sync, create/update Master Managed Host records for the public topology:
 
 Enumerate records before cleanup. Delete only the exact confirmed duplicate or wrong node/inbound binding.
 
+### Additional clients and Reality Vision flow
+
+For a client other than `main`, the VLESS Reality entries must carry
+`flow: xtls-rprx-vision`. Set the client-level flow (or an explicit
+per-inbound flow override) and leave VMess/HY2 client entries without a flow.
+Do not assume that a successful client update means the rest of the client
+state survived.
+
+The 3x-ui client update endpoint can accept a partial body but may rebuild the
+client record with omitted fields at zero/false values. On a Master/Node
+deployment this can also remove the current remote-inbound relation; if the
+client is disabled, Node reconciliation filters it and the Node may revert to
+`main` only. Use this sequence:
+
+1. Fetch the complete client record and record its existing UUID/auth,
+   `subId`, quota, `enable` state, and intended `inboundIds`.
+2. Submit a complete normalized update body, changing only `flow` to
+   `xtls-rprx-vision` for the Reality-capable client. Preserve `enable: true`,
+   quota, credentials, and subscription identity; do not send a flow on
+   VMess/HY2-only records.
+3. Re-read the client list and verify the intended inbound IDs are still
+   attached. If remote IDs disappeared, use the official client attach or
+   inbound update API to restore them, then push/reconcile the affected Nodes.
+   Verify the Node inbound settings contain the client and that it remains
+   enabled after the next sync cycle.
+4. Fetch each affected Clash subscription, parse the YAML, and assert that
+   every VLESS Reality proxy for the client has `flow:
+   xtls-rprx-vision`; also assert that the expected operator-selected protocol
+   set is still present.
+
+Never repair this by editing the SQLite database directly. If an API update
+returns success but the generated subscription loses nodes, treat the update
+as incomplete until Master bindings, Node settings, and the subscription all
+agree.
+
 ## Clash template and acceptance
 
 The included `assets/sample.yaml` is the baseline. Before placing it in 3x-ui global Clash rules, remove its entire `proxies:` block because 3x-ui creates dynamic proxies. In versions requiring full settings validation, first fetch all settings, replace only the Clash fields, submit the complete object, then restart/reload 3x-ui if necessary.
@@ -131,6 +166,8 @@ Parse the newly generated YAML before testing traffic. From an independent netwo
 | All HY2 entries timeout | Inspect active stream config, UDP socket ownership, Docker/OpenResty binding conflicts, firewall, and packet flow; remove `proxy_responses 0`. |
 | HY2 works after a port change but VMess times out | Search active Nginx and panel-managed site fragments for stale `127.0.0.1:<old-port>` VMess targets. Update both the TLS WebSocket locations and the visible website proxy entry to the new private TCP loopback port, then test with Mihomo. |
 | New HY2 port is not reflected in subscription | Enumerate Managed Hosts before editing. Add or update the exact HY2 row with the public UDP port, node scope, domain/SNI, and ALPN; then regenerate and parse each client subscription. |
+| Additional client's Reality link lacks `flow` | Fetch the complete client state, set `flow` to `xtls-rprx-vision`, preserve `enable`/quota/UUID/auth/subId, restore any lost inbound bindings through the official API, reconcile Nodes, and re-parse the client's Clash YAML. |
+| Client update succeeds but remote Nodes show only `main` | Check whether omitted update fields disabled the client or removed its `inboundIds`; restore the full client state and bindings, then verify the next Node reconciliation. |
 | Public panel path returns 404 | Inspect `nginx -T`; ensure the visible site contains/inherits the proxy config; test config, reload/restart, then test the exact path. |
 | Node sync works but subscription is wrong | Inspect Managed Host rows and generated YAML; correct wrong host/node/inbound binding and regenerate. |
 | It breaks after container recreate | Replace ephemeral container-IP targets with a validated static private network address or atomically update/retest target. |

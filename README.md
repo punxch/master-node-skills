@@ -68,6 +68,7 @@ git -C "$env:USERPROFILE\.codex\skills\master-node-skills" pull --ff-only
 - VMess 输出必须是 `443`、`tls: true`，且 SNI、WS Host、路径均属于对应 Node；
 - HY2 输出必须使用公网 UDP 端口，证书/SNI 正确，且可收到上游 UDP 响应；
 - Reality 输出必须有正确端口、Public Key、Short ID 和 Vision flow；
+- 额外客户端的 Reality 输出必须包含 `flow: xtls-rprx-vision`。更新客户端时要提交完整状态，保留 UUID/auth、`subId`、配额、启用状态和目标入站绑定；成功响应不等于远程 Node 已完成同步。
 - 订阅 YAML 可解析，节点数量、名称、代理组、规则正确；
 - 所有节点均能实际代理外部 HTTP 请求；
 - 面板和订阅 URL（含路径）、证书与用户选择的访问控制策略均真实生效。
@@ -80,6 +81,8 @@ git -C "$env:USERPROFILE\.codex\skills\master-node-skills" pull --ff-only
 | 全部 HY2 超时 | `stream` 是否生效、UDP 端口是否冲突、防火墙是否放行；不要配置 `proxy_responses 0`，它会丢弃上游响应。 |
 | HY2 改端口后 VMess 超时 | HY2 与 VMess 可能共用容器 443 的回环映射。迁移时同步迁移 Docker TCP/UDP 回环端口、Nginx stream、所有 VMess WebSocket `proxy_pass`，以及 AcePanel/1Panel 中可见的网站代理目标；搜索并清除旧回环端口引用。 |
 | HY2 新端口未出现在订阅 | 检查并新增/更新对应 Managed Host 的公网 UDP 端口、节点范围、SNI 和 ALPN，再重新解析所有客户端订阅。 |
+| 额外客户端 Reality 缺少 flow | 将该客户端的 flow 设为 `xtls-rprx-vision`，检查完整客户端状态和所有目标入站绑定，推送/同步 Node 后重新解析 YAML。 |
+| 客户端更新后 Node 只剩 `main` | 检查是否因部分更新把客户端变为禁用或丢失 `inboundIds`；使用官方客户端绑定/入站更新 API 恢复，再验证 Node 配置和订阅。 |
 | 1Panel 有网站条目但公网面板 404 | 用 `nginx -T` 验证该网站的代理配置是否已加载；执行 `nginx -t`、成功重载后再测试完整路径。 |
 | 容器重建后失效 | Nginx 不应指向临时 Docker IP；Host-network OpenResty 场景应使用已验证的静态私有 Docker 地址。 |
 | Node 已同步但订阅参数错误 | 检查是否存在重复或错误绑定的 Managed Host，修正后重新生成并解析订阅。 |
