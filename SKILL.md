@@ -50,6 +50,22 @@ Validate every generated proxy, not just one successful node:
 
 If a VMess subscription says `tls: false` while Nginx owns public 443, correct the Managed Host TLS/SNI/Host/path override. If HY2 times out through Nginx, inspect the UDP stream configuration and remove `proxy_responses 0`; that directive suppresses upstream responses. See the runbook's repair table before modifying production.
 
+Port-migration invariant: the public HY2 port and the Docker loopback port are
+different concerns. When moving HY2 to another public UDP port, first enumerate
+all TCP/UDP host mappings and listeners. If the old loopback port was also used
+by the container's TCP 443 mapping for VMess, move both container mappings to a
+dedicated loopback port (for example, an unexposed 18xxx port), update the Nginx
+UDP stream and every VMess WebSocket `proxy_pass`, then update the visible
+website proxy entry, firewall/security-group rule, the exact Managed Host row,
+and every generated subscription. Never let Nginx and Docker bind the same host
+UDP port.
+
+After any HY2 port migration, search the active Nginx configuration and all
+panel-managed site fragments for the old loopback target. A stale VMess
+WebSocket target can make only VMess time out while HY2 appears fixed. Validate
+with `nginx -T`, `nginx -t`, a successful reload, and an independent Mihomo
+VMess probe; do not rely on a saved panel setting alone.
+
 ## Completion handoff
 
 Report the architecture, protocol names, verified public panel URLs (including their base paths), panel usernames, and passwords only as authorized by the user. State the result of each acceptance test and any intentional public-access policy. Remind the user to rotate the temporary SSH password and every 1Panel web-login password after deployment, and to store newly created API tokens/panel credentials in a password manager.

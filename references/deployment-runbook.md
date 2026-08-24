@@ -86,6 +86,19 @@ server {
 
 Never use `proxy_responses 0` for HY2. It discards upstream UDP responses and causes client timeouts. Confirm `nginx -T`, run `nginx -t`, reload successfully, and test the precise public panel base-path/WS/HY2 listener. A saved setting or a reload command alone is not proof that Nginx is actually serving it.
 
+### HY2 public-port migration
+
+Treat a public HY2 port change as a cross-layer change, not a single Nginx edit. Before changing it, record `ss -lntup`, Docker port bindings, the active stream file, firewall/security-group rules, and the Master Managed Host row. If the container publishes its internal 443/TCP and 443/UDP through one loopback host port, that port may also be the VMess WebSocket upstream. Move both Docker mappings to a dedicated loopback port (for example `127.0.0.1:18443:443/tcp` and `/udp`), set the stream `listen` to the new public UDP port and `proxy_pass` to that loopback port, and update every HTTP VMess `proxy_pass` that used the old loopback port. Keep the loopback port private.
+
+Then, in order:
+
+1. Add the new UDP firewall/security-group rule and verify no host-port collision.
+2. Recreate the container with the new loopback mapping and verify the TCP and UDP sockets.
+3. Update and reload the Nginx stream and the TLS/WS virtual host; search all active and panel-generated fragments for the old target.
+4. Add or update the exact Master Managed Host for the HY2 inbound, including public port, domain/SNI, ALPN, node scope, and no duplicate row.
+5. Regenerate and parse every affected subscription. Check both `main` and any additional clients; the HY2 port must be the new public port and VMess must still be `443/TCP` with the correct WS path.
+6. From an independent VPS, run a real HY2 handshake and a real Mihomo VMess probe. A UDP packet reaching the firewall or an HTTP 400 from a non-WebSocket curl is only a reachability hint, not protocol acceptance.
+
 ## Default inbounds and Master integration
 
 Create three entries on the Master and every Node, named with the user-approved prefix:
@@ -116,6 +129,8 @@ Parse the newly generated YAML before testing traffic. From an independent netwo
 | --- | --- |
 | VMess timeout while another works | Compare generated TLS/SNI/Host/path/port to its exact Managed Host and Nginx site; fix `tls: false` when public 443 terminates TLS. |
 | All HY2 entries timeout | Inspect active stream config, UDP socket ownership, Docker/OpenResty binding conflicts, firewall, and packet flow; remove `proxy_responses 0`. |
+| HY2 works after a port change but VMess times out | Search active Nginx and panel-managed site fragments for stale `127.0.0.1:<old-port>` VMess targets. Update both the TLS WebSocket locations and the visible website proxy entry to the new private TCP loopback port, then test with Mihomo. |
+| New HY2 port is not reflected in subscription | Enumerate Managed Hosts before editing. Add or update the exact HY2 row with the public UDP port, node scope, domain/SNI, and ALPN; then regenerate and parse each client subscription. |
 | Public panel path returns 404 | Inspect `nginx -T`; ensure the visible site contains/inherits the proxy config; test config, reload/restart, then test the exact path. |
 | Node sync works but subscription is wrong | Inspect Managed Host rows and generated YAML; correct wrong host/node/inbound binding and regenerate. |
 | It breaks after container recreate | Replace ephemeral container-IP targets with a validated static private network address or atomically update/retest target. |
