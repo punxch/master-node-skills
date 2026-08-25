@@ -29,6 +29,7 @@ Do not request a Master API token until the Master is reachable. Create node API
 - Default per-host protocol set: VMess + TLS + WebSocket, Hysteria2, and VLESS + Reality + Vision. Use a consistent country/location prefix, but do not call a Node `master` in its display name.
 - Keep one Master client named `main`: the Node VMess and VLESS client UUIDs must equal `main.uuid`; the Node Hysteria client `auth` must equal `main.auth`. Preserve its subscription ID.
 - For additional clients, set the client-level `flow` to `xtls-rprx-vision` (or an equivalent per-inbound override) so every VLESS Reality link carries Vision; do not add that flow to VMess or HY2 links. Treat a 3x-ui client update as a full-state update: preserve the existing UUID/auth, subscription ID, quota, enabled state, and intended inbound bindings, then verify node sync and the generated subscription.
+- Default Reality-Vision inbound configuration: every VLESS Reality inbound must set `streamSettings.realitySettings` with `minClientVer: "1.0.0"`, `maxClientVer: ""`, `maxTimediff: 0`, and a `settings` block containing the node public key plus `fingerprint: "chrome"`, `serverName: ""`, `spiderX: "/"`. Do not leave `minClientVer` at restrictive values such as `"1.8.0"`, and do not omit `settings.fingerprint`. When these fields are missing, the generated Clash/Mihomo Reality proxy loses `client-fingerprint: chrome` or is rejected during the Vision handshake, so Reality can time out even though a native Xray client connects successfully. Always parse the generated Clash YAML and confirm every Reality proxy carries `client-fingerprint: chrome`.
 
 ## Execution workflow
 
@@ -45,7 +46,7 @@ Validate every generated proxy, not just one successful node:
 
 - VMess: public port `443`, `tls: true`, SNI and WebSocket Host equal that node's domain, and the intended WebSocket path.
 - HY2: public UDP port equals the published stream port (normally `8443`), certificate/SNI is the node domain, and end-to-end UDP responses arrive.
-- Reality: public dedicated TCP port, correct public key and short ID, Vision flow, and a permitted decoy SNI/fingerprint.
+- Reality: public dedicated TCP port, correct public key and short ID, Vision flow, a permitted decoy SNI/fingerprint, and generated YAML that carries `client-fingerprint: chrome` for every Reality proxy.
 - Parse the generated Clash YAML; check the expected proxy count, display names, groups/rules, and no duplicate/wrong Managed Host binding.
 - Independently connect through all proxies and fetch an external HTTP endpoint through each one. Confirm both master and node panels/subscription paths are public only to the extent the user selected.
 

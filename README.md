@@ -8,7 +8,7 @@
 | --- | --- | --- |
 | VMess + TLS + WebSocket | `443/TCP` | Nginx 终止 TLS，并反向代理 WebSocket。 |
 | Hysteria2 | `8443/UDP` | Nginx `stream` 转发至 Xray。 |
-| VLESS + Reality + Vision | `10443/TCP` | Reality 使用独立 TCP 入口，是不走 HTTP 反代的必要例外。 |
+| VLESS + Reality + Vision | `10443/TCP` | Reality 使用独立 TCP 入口，是不走 HTTP 反代的必要例外；入站必须按默认 Reality-Vision 配置设置 `minClientVer: "1.0.0"`、`settings.fingerprint: "chrome"` 等，生成订阅必须包含 `client-fingerprint: chrome`。 |
 
 ## 安装
 
@@ -86,6 +86,7 @@ git -C "$env:USERPROFILE\.codex\skills\master-node-skills" pull --ff-only
 | 1Panel 有网站条目但公网面板 404 | 用 `nginx -T` 验证该网站的代理配置是否已加载；执行 `nginx -t`、成功重载后再测试完整路径。 |
 | 容器重建后失效 | Nginx 不应指向临时 Docker IP；Host-network OpenResty 场景应使用已验证的静态私有 Docker 地址。 |
 | Node 已同步但订阅参数错误 | 检查是否存在重复或错误绑定的 Managed Host，修正后重新生成并解析订阅。 |
+| Reality 单节点超时，其他 Reality 正常 | 对比正常节点的 `streamSettings.realitySettings`：`minClientVer` 应为 `1.0.0`，`settings.fingerprint` 应为 `chrome` 且不能缺失；修正后重启 Xray、重新同步节点，并确认订阅 YAML 输出 `client-fingerprint: chrome`。 |
 
 详细实施与修复步骤见 [references/deployment-runbook.md](references/deployment-runbook.md)。
 

@@ -107,7 +107,35 @@ Create three entries on the Master and every Node, named with the user-approved 
 | --- | --- | --- |
 | VMess + TLS + WS | 443/TCP at Nginx | Nginx terminates TLS; client SNI and WS Host are the node domain; use a unique WS path. |
 | Hysteria2 | 8443/UDP by default via stream | Valid certificate for node domain, SNI equals that domain, and Xray can read renewed certificate files. |
-| VLESS + Reality + Vision | 10443/TCP by default | Raw Reality, Vision flow, valid Reality keypair/short ID, and an approved decoy target/SNI/fingerprint. |
+| VLESS + Reality + Vision | 10443/TCP by default | Raw Reality, Vision flow, valid Reality keypair/short ID, approved decoy target/SNI, and the full Reality-Vision settings below. |
+
+Default Reality-Vision inbound requirements:
+
+```json
+{
+  "network": "tcp",
+  "security": "reality",
+  "realitySettings": {
+    "show": false,
+    "dest": "www.cloudflare.com:443",
+    "xver": 0,
+    "serverNames": ["www.cloudflare.com"],
+    "privateKey": "<node-private-key>",
+    "shortIds": ["<short-id>"],
+    "minClientVer": "1.0.0",
+    "maxClientVer": "",
+    "maxTimediff": 0,
+    "settings": {
+      "publicKey": "<node-public-key>",
+      "fingerprint": "chrome",
+      "serverName": "",
+      "spiderX": "/"
+    }
+  }
+}
+```
+
+Keep `minClientVer` at `"1.0.0"`, not a restrictive value such as `"1.8.0"`. The `settings` block is mandatory for subscription generation: without `settings.fingerprint: "chrome"` the generated Clash/Mihomo Reality proxy loses `client-fingerprint: chrome`, and Reality may time out even though a native Xray client connects. Some 3x-ui versions expose the fallback destination as `dest`, others as `target`; use whichever field name that panel version's API expects and verify the generated YAML afterward.
 
 The Master owns one canonical client named `main`. Node VMess and VLESS client UUIDs must equal `main.uuid`; each Hysteria client `auth` must equal `main.auth` (not the UUID). Save Node API tokens once securely, register only after public Node panel paths work, probe the node, and confirm expected inbound sync.
 
@@ -166,6 +194,7 @@ Parse the newly generated YAML before testing traffic. From an independent netwo
 | All HY2 entries timeout | Inspect active stream config, UDP socket ownership, Docker/OpenResty binding conflicts, firewall, and packet flow; remove `proxy_responses 0`. |
 | HY2 works after a port change but VMess times out | Search active Nginx and panel-managed site fragments for stale `127.0.0.1:<old-port>` VMess targets. Update both the TLS WebSocket locations and the visible website proxy entry to the new private TCP loopback port, then test with Mihomo. |
 | New HY2 port is not reflected in subscription | Enumerate Managed Hosts before editing. Add or update the exact HY2 row with the public UDP port, node scope, domain/SNI, and ALPN; then regenerate and parse each client subscription. |
+| Reality times out on one node while others work | Compare the full `streamSettings.realitySettings` of a working node. Set `minClientVer: "1.0.0"`, `maxClientVer: ""`, `maxTimediff: 0`, and `settings.fingerprint: "chrome"` / `serverName: ""` / `spiderX: "/"`; restart Xray, re-sync the node, and parse the generated Clash YAML to confirm `client-fingerprint: chrome`. |
 | Additional client's Reality link lacks `flow` | Fetch the complete client state, set `flow` to `xtls-rprx-vision`, preserve `enable`/quota/UUID/auth/subId, restore any lost inbound bindings through the official API, reconcile Nodes, and re-parse the client's Clash YAML. |
 | Client update succeeds but remote Nodes show only `main` | Check whether omitted update fields disabled the client or removed its `inboundIds`; restore the full client state and bindings, then verify the next Node reconciliation. |
 | Public panel path returns 404 | Inspect `nginx -T`; ensure the visible site contains/inherits the proxy config; test config, reload/restart, then test the exact path. |
