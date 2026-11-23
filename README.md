@@ -87,8 +87,17 @@ git -C "$env:USERPROFILE\.codex\skills\master-node-skills" pull --ff-only
 | 容器重建后失效 | Nginx 不应指向临时 Docker IP；Host-network OpenResty 场景应使用已验证的静态私有 Docker 地址。 |
 | Node 已同步但订阅参数错误 | 检查是否存在重复或错误绑定的 Managed Host，修正后重新生成并解析订阅。 |
 | Reality 单节点超时，其他 Reality 正常 | 对比正常节点的 `streamSettings.realitySettings`：`minClientVer` 应为 `1.0.0`，`settings.fingerprint` 应为 `chrome` 且不能缺失；修正后重启 Xray、重新同步节点，并确认订阅 YAML 输出 `client-fingerprint: chrome`。 |
+| 新建入站能连，但订阅里没有它 | 入站 `settings.clients` 为空。订阅生成器按此判断是否输出，为空时静默跳过；把手上的客户端写回该字段后重启节点。 |
+| 入站出现在订阅，但所有客户端瞬间失败 | 缺 `client_inbounds` 绑定，生成的 `config.json` 里 `clients` 为 `[]`。补绑定后重启，并在容器内确认客户端数量 > 0。 |
+| Master 本地新建入站不进订阅 | 缺对应的 `hosts` 行；Master 自有入站必须有该行，Node 入站可以没有。 |
+| 升级到 Xray ≥ 26.9 后 Reality 全部 `authentication failed` | 服务端要求 ClientHello 携带 X25519MLKEM768。mihomo 需 `reality-opts.support-x25519mlkem768: true`；3.11 订阅生成器会自动输出，旧生成器不会，sing-box 系客户端不发该扩展。 |
+| 克隆 3.6.0 的 Reality 入站时报 `KeyError: 'dest'` | 老版本存的是 `realitySettings.target`，读取时应写成 `rs.get("dest") or rs.get("target")`。 |
+| 禁用入站后订阅里仍有死节点 / 删除后仍出现 | `enable = 0` 只停监听、不影响订阅；要下线必须删除。删除顺序为「先节点、后 Master」，并重启 Master 清理内存态，否则订阅会保留已删除节点。 |
+| `docker compose up -d` 后版本没变 | 镜像被钉在 `@sha256:...` 上；改成 tag 或新 digest 后重建，再用容器内 `/app/x-ui -v` 与 `bin/xray-linux-amd64 version` 确认。 |
+| 面板/订阅突然 5xx，容器起不来 | 检查磁盘：在原目录反复生成 `.bak` 可能产生级联备份（曾有 8000+ 文件、11GB 写满 24G 盘）。清理 `*.bak.*` 后校验 `PRAGMA integrity_check` 再启动，备份一律写到独立目录。 |
+| 订阅里的 H3 节点连不上 | H3 必须是 `alpn: ["h3"]` **且** 发布 `udp` 端口；只写对入站、没发布 UDP 端口时，症状与协议损坏完全一样。 |
 
-详细实施与修复步骤见 [references/deployment-runbook.md](references/deployment-runbook.md)。
+详细实施与修复步骤见 [references/deployment-runbook.md](references/deployment-runbook.md)；真实故障的症状、根因与验证方法见 [references/pitfalls.md](references/pitfalls.md)。
 
 ## 安全与交付
 

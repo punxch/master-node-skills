@@ -7,7 +7,7 @@ description: Deploy, extend, repair, and validate a Docker Compose 3x-ui Master 
 
 Use this skill for an operator-managed 3x-ui cluster: one Master serves the subscription and holds the canonical client; remote Nodes provide inbounds and are registered to the Master. Treat every domain, IP, API key, token, UUID, subscription ID, credential, private panel path, and certificate key as secret. Do not put real values into scripts, templates, logs, screenshots, or the final summary unless the user explicitly asks for that specific value.
 
-Read [the deployment runbook](references/deployment-runbook.md) before making changes. Use [the Clash template](assets/sample.yaml) when configuring the Master Clash global template.
+Read [the deployment runbook](references/deployment-runbook.md) before making changes, and [the field pitfalls ledger](references/pitfalls.md) before editing an existing cluster — it records failures that produce no panel error and are easy to misdiagnose (missing client bindings, subscription regeneration, certificate and version traps). Use [the Clash template](assets/sample.yaml) when configuring the Master Clash global template.
 
 ## Collect the deployment contract first
 
@@ -44,6 +44,14 @@ Do not request a Master API token until the Master is reachable. Create node API
 
 Validate every generated proxy, not just one successful node:
 
+- Every inbound must exist as three consistent records before it can be trusted:
+  `settings.clients` (decides whether the subscription emits it), `client_inbounds`
+  (decides whether the generated `config.json` has any client at all), and — for
+  Master-local inbounds — a `hosts` row. Each omission has a different symptom and none
+  of them raises a panel error. See the pitfalls ledger before hand-writing a row.
+- `enable = 0` stops the listener but does not remove the proxy from the subscription;
+  only deletion does. After deleting on a node, delete the Master-side leftovers and
+  restart the Master, otherwise a dead proxy survives in the subscription.
 - VMess: public port `443`, `tls: true`, SNI and WebSocket Host equal that node's domain, and the intended WebSocket path.
 - HY2: public UDP port equals the published stream port (normally `8443`), certificate/SNI is the node domain, and end-to-end UDP responses arrive.
 - Reality: public dedicated TCP port, correct public key and short ID, Vision flow, a permitted decoy SNI/fingerprint, and generated YAML that carries `client-fingerprint: chrome` for every Reality proxy.
